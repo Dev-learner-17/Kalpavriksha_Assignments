@@ -75,6 +75,8 @@ int main() {
         char line[150];
         char *lastToken;
         char *nameStart;
+        int rollNumber;
+        int duplicate;
 
         printf("\nEnter details for student %d:\n", i + 1);
         printf("Enter Roll Number, Name, and Marks in 3 subjects: ");
@@ -83,6 +85,7 @@ int main() {
         line[strcspn(line, "\n")] = '\0';
 
         lastToken = strrchr(line, ' ');
+
         if (lastToken == NULL)
             return 1;
 
@@ -90,6 +93,7 @@ int main() {
         *lastToken = '\0';
 
         lastToken = strrchr(line, ' ');
+
         if (lastToken == NULL)
             return 1;
 
@@ -97,6 +101,7 @@ int main() {
         *lastToken = '\0';
 
         lastToken = strrchr(line, ' ');
+
         if (lastToken == NULL)
             return 1;
 
@@ -107,19 +112,29 @@ int main() {
 
         if (nameStart != NULL) {
             *nameStart = '\0';
-            students[i].rollNumber = atoi(line);
+            rollNumber = atoi(line);
+            duplicate = 0;
 
+            for (int j = 0; j < i; j++) {
+                if (students[j].rollNumber == rollNumber) {
+                    duplicate = 1;
+                    break;
+                }
+            }
+
+            if (duplicate) {
+                printf("Error: Roll number %d already exists.\n", rollNumber);
+                i--;
+                continue;
+            }
+
+            students[i].rollNumber = rollNumber;
             nameStart++;
 
             while (*nameStart == ' ')
                 nameStart++;
 
-            strncpy(
-                students[i].name,
-                nameStart,
-                sizeof(students[i].name) - 1
-            );
-
+            strncpy(students[i].name, nameStart, sizeof(students[i].name) - 1);
             students[i].name[sizeof(students[i].name) - 1] = '\0';
         }
 
