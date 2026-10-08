@@ -3,26 +3,29 @@
 #include <stdlib.h>
 
 #define MAX_STUDENTS 100
+#define SUBJECT_COUNT 3
 
 struct Student {
     int rollNumber;
     char name[50];
-    float marks[3];
-    int total;
+    float marks[SUBJECT_COUNT];
+    float total;
     float average;
     char grade;
 };
 
-int calculateTotal(struct Student student) {
-    return (int)(student.marks[0] + student.marks[1] + student.marks[2]);
+float calculateTotal(struct Student student) {
+    return student.marks[0] + student.marks[1] + student.marks[2];
 }
 
-float calculateAverage(int total) {
-    return total / 3.0f;
+float calculateAverage(float total) {
+    return total / SUBJECT_COUNT;
 }
 
 char calculateGrade(float average) {
-    if (average >= 85)
+    if (average < 0 || average > 100)
+        return 'F';
+    else if (average >= 85)
         return 'A';
     else if (average >= 70)
         return 'B';
@@ -35,133 +38,168 @@ char calculateGrade(float average) {
 }
 
 void printPerformance(char grade) {
-    int stars = 0;
+    int performanceStars = 0;
 
     if (grade == 'A')
-        stars = 5;
+        performanceStars = 5;
     else if (grade == 'B')
-        stars = 4;
+        performanceStars = 4;
     else if (grade == 'C')
-        stars = 3;
+        performanceStars = 3;
     else if (grade == 'D')
-        stars = 2;
+        performanceStars = 2;
 
-    for (int i = 0; i < stars; i++)
+    for (int starIndex = 0; starIndex < performanceStars; starIndex++)
         printf("*");
 }
 
-void printRollNumbers(struct Student students[], int index, int n) {
-    if (index >= n)
+void printRollNumbers(struct Student students[], int index, int studentCount) {
+    if (index >= studentCount)
         return;
 
     printf("%d ", students[index].rollNumber);
-    printRollNumbers(students, index + 1, n);
+    printRollNumbers(students, index + 1, studentCount);
+}
+
+int inputStudent(struct Student students[], int studentIndex) {
+    char line[150];
+    char *lastToken;
+    char *nameStart;
+    int rollNumber;
+
+    printf("\nEnter details for student %d:\n", studentIndex + 1);
+    printf("Enter Roll Number, Name, and Marks in 3 subjects: ");
+
+    if (fgets(line, sizeof(line), stdin) == NULL) {
+        printf("Error: Unable to read student details.\n");
+        return 0;
+    }
+
+    line[strcspn(line, "\n")] = '\0';
+
+    lastToken = strrchr(line, ' ');
+
+    if (lastToken == NULL) {
+        printf("Error: Invalid input format. Please enter roll number, name, and 3 marks.\n");
+        return 0;
+    }
+
+    students[studentIndex].marks[2] = (float)atof(lastToken + 1);
+    *lastToken = '\0';
+
+    lastToken = strrchr(line, ' ');
+
+    if (lastToken == NULL) {
+        printf("Error: Invalid input format. Please enter roll number, name, and 3 marks.\n");
+        return 0;
+    }
+
+    students[studentIndex].marks[1] = (float)atof(lastToken + 1);
+    *lastToken = '\0';
+
+    lastToken = strrchr(line, ' ');
+
+    if (lastToken == NULL) {
+        printf("Error: Invalid input format. Please enter roll number, name, and 3 marks.\n");
+        return 0;
+    }
+
+    students[studentIndex].marks[0] = (float)atof(lastToken + 1);
+    *lastToken = '\0';
+
+    nameStart = strchr(line, ' ');
+
+    if (nameStart == NULL) {
+        printf("Error: Invalid input format. Please provide a name.\n");
+        return 0;
+    }
+
+    *nameStart = '\0';
+    rollNumber = atoi(line);
+
+    for (int previousStudentIndex = 0; previousStudentIndex < studentIndex; previousStudentIndex++) {
+        if (students[previousStudentIndex].rollNumber == rollNumber) {
+            printf("Error: Roll number %d already exists. Please enter a different roll number.\n", rollNumber);
+            return 0;
+        }
+    }
+
+    students[studentIndex].rollNumber = rollNumber;
+
+    nameStart++;
+
+    while (*nameStart == ' ')
+        nameStart++;
+
+    if (*nameStart == '\0') {
+        printf("Error: Name cannot be empty.\n");
+        return 0;
+    }
+
+    strncpy(students[studentIndex].name, nameStart, sizeof(students[studentIndex].name) - 1);
+    students[studentIndex].name[sizeof(students[studentIndex].name) - 1] = '\0';
+
+    for (int subjectIndex = 0; subjectIndex < SUBJECT_COUNT; subjectIndex++) {
+        if (students[studentIndex].marks[subjectIndex] < 0 || students[studentIndex].marks[subjectIndex] > 100) {
+            printf("Error: Marks must be between 0 and 100.\n");
+            return 0;
+        }
+    }
+
+    students[studentIndex].total = calculateTotal(students[studentIndex]);
+    students[studentIndex].average = calculateAverage(students[studentIndex].total);
+    students[studentIndex].grade = calculateGrade(students[studentIndex].average);
+
+    return 1;
+}
+
+void displayPerformance(struct Student students[], int studentCount) {
+    printf("\n===== Student Performance =====\n");
+
+    for (int studentIndex = 0; studentIndex < studentCount; studentIndex++) {
+        printf("\nRoll: %d\n", students[studentIndex].rollNumber);
+        printf("Name: %s\n", students[studentIndex].name);
+        printf("Total: %.2f\n", students[studentIndex].total);
+        printf("Average: %.2f\n", students[studentIndex].average);
+        printf("Grade: %c\n", students[studentIndex].grade);
+
+        if (students[studentIndex].average < 35)
+            continue;
+
+        printf("Performance: ");
+        printPerformance(students[studentIndex].grade);
+        printf("\n");
+    }
 }
 
 int main() {
     struct Student students[MAX_STUDENTS];
-    int n;
+    int studentCount;
 
     printf("Enter number of students: ");
-    scanf("%d", &n);
-    getchar();
 
-    if (n < 1 || n > MAX_STUDENTS) {
-        printf("Invalid number of students.\n");
+    if (scanf("%d", &studentCount) != 1) {
+        printf("Error: Please enter a valid number of students.\n");
         return 1;
     }
 
-    for (int i = 0; i < n; i++) {
-        char line[150];
-        char *lastToken;
-        char *nameStart;
-        int rollNumber;
-        int duplicate;
+    getchar();
 
-        printf("\nEnter details for student %d:\n", i + 1);
-        printf("Enter Roll Number, Name, and Marks in 3 subjects: ");
+    if (studentCount < 1 || studentCount > MAX_STUDENTS) {
+        printf("Invalid number of students. Enter a value between 1 and %d.\n", MAX_STUDENTS);
+        return 1;
+    }
 
-        fgets(line, sizeof(line), stdin);
-        line[strcspn(line, "\n")] = '\0';
-
-        lastToken = strrchr(line, ' ');
-
-        if (lastToken == NULL)
-            return 1;
-
-        students[i].marks[2] = (float)atof(lastToken + 1);
-        *lastToken = '\0';
-
-        lastToken = strrchr(line, ' ');
-
-        if (lastToken == NULL)
-            return 1;
-
-        students[i].marks[1] = (float)atof(lastToken + 1);
-        *lastToken = '\0';
-
-        lastToken = strrchr(line, ' ');
-
-        if (lastToken == NULL)
-            return 1;
-
-        students[i].marks[0] = (float)atof(lastToken + 1);
-        *lastToken = '\0';
-
-        nameStart = strchr(line, ' ');
-
-        if (nameStart != NULL) {
-            *nameStart = '\0';
-            rollNumber = atoi(line);
-            duplicate = 0;
-
-            for (int j = 0; j < i; j++) {
-                if (students[j].rollNumber == rollNumber) {
-                    duplicate = 1;
-                    break;
-                }
-            }
-
-            if (duplicate) {
-                printf("Error: Roll number %d already exists.\n", rollNumber);
-                i--;
-                continue;
-            }
-
-            students[i].rollNumber = rollNumber;
-            nameStart++;
-
-            while (*nameStart == ' ')
-                nameStart++;
-
-            strncpy(students[i].name, nameStart, sizeof(students[i].name) - 1);
-            students[i].name[sizeof(students[i].name) - 1] = '\0';
+    for (int studentIndex = 0; studentIndex < studentCount; studentIndex++) {
+        while (!inputStudent(students, studentIndex)) {
+            printf("Please enter the student details again.\n");
         }
-
-        students[i].total = calculateTotal(students[i]);
-        students[i].average = calculateAverage(students[i].total);
-        students[i].grade = calculateGrade(students[i].average);
     }
 
-    printf("\n===== Student Performance =====\n");
-
-    for (int i = 0; i < n; i++) {
-        printf("\nRoll: %d\n", students[i].rollNumber);
-        printf("Name: %s\n", students[i].name);
-        printf("Total: %d\n", students[i].total);
-        printf("Average: %.2f\n", students[i].average);
-        printf("Grade: %c\n", students[i].grade);
-
-        if (students[i].average < 35)
-            continue;
-
-        printf("Performance: ");
-        printPerformance(students[i].grade);
-        printf("\n");
-    }
+    displayPerformance(students, studentCount);
 
     printf("\nList of Roll Numbers (via recursion): ");
-    printRollNumbers(students, 0, n);
+    printRollNumbers(students, 0, studentCount);
     printf("\n");
 
     return 0;
