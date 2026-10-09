@@ -1,13 +1,27 @@
-#include <stdio.h>
+﻿#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
 #define MAX_STUDENTS 100
+#define MIN_STUDENTS 1
 #define SUBJECT_COUNT 3
+#define MAX_NAME_LENGTH 50
+#define INPUT_BUFFER_SIZE 150
+#define MIN_MARKS 0.0f
+#define MAX_MARKS 100.0f
+#define GRADE_A_MIN 85.0f
+#define GRADE_B_MIN 70.0f
+#define GRADE_C_MIN 50.0f
+#define GRADE_D_MIN 35.0f
+#define NO_STARS 0
+#define GRADE_A_STARS 5
+#define GRADE_B_STARS 4
+#define GRADE_C_STARS 3
+#define GRADE_D_STARS 2
 
 struct Student {
     int rollNumber;
-    char name[50];
+    char name[MAX_NAME_LENGTH];
     float marks[SUBJECT_COUNT];
     float total;
     float average;
@@ -15,7 +29,12 @@ struct Student {
 };
 
 float calculateTotal(struct Student student) {
-    return student.marks[0] + student.marks[1] + student.marks[2];
+    float total = 0.0f;
+
+    for (int subjectIndex = 0; subjectIndex < SUBJECT_COUNT; subjectIndex++)
+        total += student.marks[subjectIndex];
+
+    return total;
 }
 
 float calculateAverage(float total) {
@@ -23,31 +42,31 @@ float calculateAverage(float total) {
 }
 
 char calculateGrade(float average) {
-    if (average < 0 || average > 100)
+    if (average < MIN_MARKS || average > MAX_MARKS)
         return 'F';
-    else if (average >= 85)
+    else if (average >= GRADE_A_MIN)
         return 'A';
-    else if (average >= 70)
+    else if (average >= GRADE_B_MIN)
         return 'B';
-    else if (average >= 50)
+    else if (average >= GRADE_C_MIN)
         return 'C';
-    else if (average >= 35)
+    else if (average >= GRADE_D_MIN)
         return 'D';
     else
         return 'F';
 }
 
 void printPerformance(char grade) {
-    int performanceStars = 0;
+    int performanceStars = NO_STARS;
 
     if (grade == 'A')
-        performanceStars = 5;
+        performanceStars = GRADE_A_STARS;
     else if (grade == 'B')
-        performanceStars = 4;
+        performanceStars = GRADE_B_STARS;
     else if (grade == 'C')
-        performanceStars = 3;
+        performanceStars = GRADE_C_STARS;
     else if (grade == 'D')
-        performanceStars = 2;
+        performanceStars = GRADE_D_STARS;
 
     for (int starIndex = 0; starIndex < performanceStars; starIndex++)
         printf("*");
@@ -62,13 +81,13 @@ void printRollNumbers(struct Student students[], int index, int studentCount) {
 }
 
 int inputStudent(struct Student students[], int studentIndex) {
-    char line[150];
+    char line[INPUT_BUFFER_SIZE];
     char *lastToken;
     char *nameStart;
     int rollNumber;
 
     printf("\nEnter details for student %d:\n", studentIndex + 1);
-    printf("Enter Roll Number, Name, and Marks in 3 subjects: ");
+    printf("Enter Roll Number, Name, and Marks in %d subjects: ", SUBJECT_COUNT);
 
     if (fgets(line, sizeof(line), stdin) == NULL) {
         printf("Error: Unable to read student details.\n");
@@ -77,35 +96,17 @@ int inputStudent(struct Student students[], int studentIndex) {
 
     line[strcspn(line, "\n")] = '\0';
 
-    lastToken = strrchr(line, ' ');
+    for (int subjectIndex = SUBJECT_COUNT - 1; subjectIndex >= 0; subjectIndex--) {
+        lastToken = strrchr(line, ' ');
 
-    if (lastToken == NULL) {
-        printf("Error: Invalid input format. Please enter roll number, name, and 3 marks.\n");
-        return 0;
+        if (lastToken == NULL) {
+            printf("Error: Invalid input format. Please enter roll number, name, and %d marks.\n", SUBJECT_COUNT);
+            return 0;
+        }
+
+        students[studentIndex].marks[subjectIndex] = (float)atof(lastToken + 1);
+        *lastToken = '\0';
     }
-
-    students[studentIndex].marks[2] = (float)atof(lastToken + 1);
-    *lastToken = '\0';
-
-    lastToken = strrchr(line, ' ');
-
-    if (lastToken == NULL) {
-        printf("Error: Invalid input format. Please enter roll number, name, and 3 marks.\n");
-        return 0;
-    }
-
-    students[studentIndex].marks[1] = (float)atof(lastToken + 1);
-    *lastToken = '\0';
-
-    lastToken = strrchr(line, ' ');
-
-    if (lastToken == NULL) {
-        printf("Error: Invalid input format. Please enter roll number, name, and 3 marks.\n");
-        return 0;
-    }
-
-    students[studentIndex].marks[0] = (float)atof(lastToken + 1);
-    *lastToken = '\0';
 
     nameStart = strchr(line, ' ');
 
@@ -140,8 +141,8 @@ int inputStudent(struct Student students[], int studentIndex) {
     students[studentIndex].name[sizeof(students[studentIndex].name) - 1] = '\0';
 
     for (int subjectIndex = 0; subjectIndex < SUBJECT_COUNT; subjectIndex++) {
-        if (students[studentIndex].marks[subjectIndex] < 0 || students[studentIndex].marks[subjectIndex] > 100) {
-            printf("Error: Marks must be between 0 and 100.\n");
+        if (students[studentIndex].marks[subjectIndex] < MIN_MARKS || students[studentIndex].marks[subjectIndex] > MAX_MARKS) {
+            printf("Error: Marks must be between %.0f and %.0f.\n", MIN_MARKS, MAX_MARKS);
             return 0;
         }
     }
@@ -163,7 +164,7 @@ void displayPerformance(struct Student students[], int studentCount) {
         printf("Average: %.2f\n", students[studentIndex].average);
         printf("Grade: %c\n", students[studentIndex].grade);
 
-        if (students[studentIndex].average < 35)
+        if (students[studentIndex].average < GRADE_D_MIN)
             continue;
 
         printf("Performance: ");
@@ -172,7 +173,7 @@ void displayPerformance(struct Student students[], int studentCount) {
     }
 }
 
-int main() {
+int main(void) {
     struct Student students[MAX_STUDENTS];
     int studentCount;
 
@@ -180,20 +181,19 @@ int main() {
 
     if (scanf("%d", &studentCount) != 1) {
         printf("Error: Please enter a valid number of students.\n");
-        return 1;
+        return EXIT_FAILURE;
     }
 
     getchar();
 
-    if (studentCount < 1 || studentCount > MAX_STUDENTS) {
-        printf("Invalid number of students. Enter a value between 1 and %d.\n", MAX_STUDENTS);
-        return 1;
+    if (studentCount < MIN_STUDENTS || studentCount > MAX_STUDENTS) {
+        printf("Invalid number of students. Enter a value between %d and %d.\n", MIN_STUDENTS, MAX_STUDENTS);
+        return EXIT_FAILURE;
     }
 
     for (int studentIndex = 0; studentIndex < studentCount; studentIndex++) {
-        while (!inputStudent(students, studentIndex)) {
+        while (!inputStudent(students, studentIndex))
             printf("Please enter the student details again.\n");
-        }
     }
 
     displayPerformance(students, studentCount);
@@ -202,5 +202,5 @@ int main() {
     printRollNumbers(students, 0, studentCount);
     printf("\n");
 
-    return 0;
+    return EXIT_SUCCESS;
 }
