@@ -6,7 +6,6 @@
 #define TEXT_SIZE 50
 #define LINE_SIZE 100
 #define START_CAPACITY 4
-#define CEO_ID 101
 #define CEO_DESIGNATION "CEO"
 #define NO_MANAGER 0
 
@@ -17,7 +16,6 @@ typedef enum {
     ERR_DUPLICATE,
     ERR_NO_MANAGER,
     ERR_CEO,
-    ERR_CEO_DESIGNATION,
     ERR_MEMORY
 } Status;
 
@@ -166,14 +164,11 @@ Status addEmployee(void) {
         !readLine("Enter Designation: ", designation, sizeof(designation))) {
         return ERR_INPUT;
     }
-    if ((id == CEO_ID) != isCeoDesignation(designation)) {
-        return ERR_CEO_DESIGNATION;
-    }
     if (!readInt("Enter Manager ID (0 for top-level): ", &managerId)) {
         return ERR_INPUT;
     }
 
-    if (managerId == id || (id == CEO_ID && managerId != NO_MANAGER)) {
+    if (managerId == id) {
         return ERR_INPUT;
     }
 
@@ -219,7 +214,8 @@ Status moveReports(Employee *employee) {
     Employee *manager = employee->manager;
 
     if (manager != NULL) {
-        Employee **newReports = growArray(manager->reports, &manager->reportCapacity, manager->reportCount + employee->reportCount);
+        Employee **newReports = growArray(manager->reports, &manager->reportCapacity,
+                                          manager->reportCount + employee->reportCount);
         if (newReports == NULL) {
             return ERR_MEMORY;
         }
@@ -245,7 +241,7 @@ Status removeEmployee(int id) {
     if (employee == NULL) {
         return ERR_NOT_FOUND;
     }
-    if (id == CEO_ID) {
+    if (isCeoDesignation(employee->designation)) {
         return ERR_CEO;
     }
 
@@ -317,9 +313,6 @@ void showStatus(Status status) {
         case ERR_DUPLICATE:  printf("Employee ID already exists.\n"); break;
         case ERR_NO_MANAGER: printf("Reporting manager not found.\n"); break;
         case ERR_CEO:        printf("The CEO cannot be removed.\n"); break;
-        case ERR_CEO_DESIGNATION:
-            printf("ID %d is only for the CEO, and the CEO designation is only for ID %d.\n", CEO_ID, CEO_ID);
-            break;
         case ERR_MEMORY:     printf("Memory allocation failed.\n"); break;
     }
 }
