@@ -7,6 +7,7 @@
 #define LINE_SIZE 100
 #define START_CAPACITY 4
 #define CEO_ID 101
+#define CEO_DESIGNATION "CEO"
 #define NO_MANAGER 0
 
 typedef enum {
@@ -16,6 +17,7 @@ typedef enum {
     ERR_DUPLICATE,
     ERR_NO_MANAGER,
     ERR_CEO,
+    ERR_CEO_DESIGNATION,
     ERR_MEMORY
 } Status;
 
@@ -33,6 +35,12 @@ Employee **allEmployees = NULL;
 int totalEmployees = 0;
 int totalCapacity = 0;
 
+void clearInputBuffer(void) {
+    int ch;
+
+    while ((ch = getchar()) != '\n' && ch != EOF) {
+    }
+}
 
 int readLine(const char *prompt, char *buffer, int size) {
     printf("%s", prompt);
@@ -44,8 +52,7 @@ int readLine(const char *prompt, char *buffer, int size) {
     int length = (int)strlen(buffer);
 
     if (buffer[length - 1] != '\n' && !feof(stdin)) {
-        int ch;
-        while ((ch = getchar()) != '\n' && ch != EOF) {}   
+        clearInputBuffer();
         return 0;
     }
 
@@ -61,7 +68,6 @@ int readLine(const char *prompt, char *buffer, int size) {
 
     return buffer[0] != '\0';
 }
-
 
 int readInt(const char *prompt, int *value) {
     char line[LINE_SIZE];
@@ -80,7 +86,6 @@ int readInt(const char *prompt, int *value) {
     *value = (int)number;
     return 1;
 }
-
 
 Employee **growArray(Employee **array, int *capacity, int needed) {
     if (needed <= *capacity) {
@@ -104,11 +109,25 @@ Employee **growArray(Employee **array, int *capacity, int needed) {
 void removeFromArray(Employee **array, int *count, Employee *target) {
     for (int i = 0; i < *count; i++) {
         if (array[i] == target) {
-            array[i] = array[*count - 1];   
+            array[i] = array[*count - 1];
             (*count)--;
             return;
         }
     }
+}
+
+int isCeoDesignation(const char *designation) {
+    const char *ceo = CEO_DESIGNATION;
+    int i = 0;
+
+    while (designation[i] != '\0' && ceo[i] != '\0') {
+        if (tolower((unsigned char)designation[i]) != tolower((unsigned char)ceo[i])) {
+            return 0;
+        }
+        i++;
+    }
+
+    return designation[i] == ceo[i];
 }
 
 Employee *findEmployee(int id) {
@@ -119,7 +138,6 @@ Employee *findEmployee(int id) {
     }
     return NULL;
 }
-
 
 Employee *createEmployee(int id, const char *name, const char *designation) {
     Employee *employee = calloc(1, sizeof(Employee));
@@ -148,6 +166,9 @@ Status addEmployee(void) {
         !readLine("Enter Designation: ", designation, sizeof(designation))) {
         return ERR_INPUT;
     }
+    if ((id == CEO_ID) != isCeoDesignation(designation)) {
+        return ERR_CEO_DESIGNATION;
+    }
     if (!readInt("Enter Manager ID (0 for top-level): ", &managerId)) {
         return ERR_INPUT;
     }
@@ -163,7 +184,6 @@ Status addEmployee(void) {
             return ERR_NO_MANAGER;
         }
     }
-
 
     Employee **newList = growArray(allEmployees, &totalCapacity, totalEmployees + 1);
     if (newList == NULL) {
@@ -195,13 +215,11 @@ Status addEmployee(void) {
     return OK;
 }
 
-
 Status moveReports(Employee *employee) {
     Employee *manager = employee->manager;
 
     if (manager != NULL) {
-        Employee **newReports = growArray(manager->reports, &manager->reportCapacity,
-                                          manager->reportCount + employee->reportCount);
+        Employee **newReports = growArray(manager->reports, &manager->reportCapacity, manager->reportCount + employee->reportCount);
         if (newReports == NULL) {
             return ERR_MEMORY;
         }
@@ -248,7 +266,6 @@ Status removeEmployee(int id) {
     return OK;
 }
 
-
 void printEmployeeTree(Employee *employee, int level) {
     for (int i = 0; i < level; i++) {
         printf("    ");
@@ -292,7 +309,6 @@ void displayCompleteHierarchy(void) {
     printf("Total Employees: %d\n", totalEmployees);
 }
 
-
 void showStatus(Status status) {
     switch (status) {
         case OK:             break;
@@ -301,6 +317,9 @@ void showStatus(Status status) {
         case ERR_DUPLICATE:  printf("Employee ID already exists.\n"); break;
         case ERR_NO_MANAGER: printf("Reporting manager not found.\n"); break;
         case ERR_CEO:        printf("The CEO cannot be removed.\n"); break;
+        case ERR_CEO_DESIGNATION:
+            printf("ID %d is only for the CEO, and the CEO designation is only for ID %d.\n", CEO_ID, CEO_ID);
+            break;
         case ERR_MEMORY:     printf("Memory allocation failed.\n"); break;
     }
 }
@@ -324,8 +343,9 @@ void showMenu(void) {
 
 int main(void) {
     int choice, id;
+    int running = 1;
 
-    while (1) {
+    while (running) {
         showMenu();
 
         if (!readInt("Enter your choice: ", &choice)) {
@@ -336,26 +356,37 @@ int main(void) {
             continue;
         }
 
-        if (choice == 1) {
-            showStatus(addEmployee());
-        } else if (choice == 2) {
-            if (readInt("Enter Employee ID to remove: ", &id)) {
-                showStatus(removeEmployee(id));
-            } else {
-                printf("Invalid employee ID.\n");
-            }
-        } else if (choice == 3) {
-            if (readInt("Enter Employee ID: ", &id)) {
-                displayEmployeeHierarchy(id);
-            } else {
-                printf("Invalid employee ID.\n");
-            }
-        } else if (choice == 4) {
-            displayCompleteHierarchy();
-        } else if (choice == 5) {
-            break;
-        } else {
-            printf("Select a choice from 1 to 5.\n");
+        switch (choice) {
+            case 1:
+                showStatus(addEmployee());
+                break;
+
+            case 2:
+                if (readInt("Enter Employee ID to remove: ", &id)) {
+                    showStatus(removeEmployee(id));
+                } else {
+                    printf("Invalid employee ID.\n");
+                }
+                break;
+
+            case 3:
+                if (readInt("Enter Employee ID: ", &id)) {
+                    displayEmployeeHierarchy(id);
+                } else {
+                    printf("Invalid employee ID.\n");
+                }
+                break;
+
+            case 4:
+                displayCompleteHierarchy();
+                break;
+
+            case 5:
+                running = 0;
+                break;
+
+            default:
+                printf("Select a choice from 1 to 5.\n");
         }
     }
 
