@@ -317,13 +317,6 @@ void showStatus(Status status) {
     }
 }
 
-void freeEverything(void) {
-    for (int i = 0; i < totalEmployees; i++) {
-        free(allEmployees[i]->reports);
-        free(allEmployees[i]);
-    }
-    free(allEmployees);
-}
 
 void showMenu(void) {
     printf("\n===== EMPLOYEE HIERARCHY MANAGEMENT =====\n");
@@ -383,7 +376,6 @@ int main(void) {
         }
     }
 
-    freeEverything();
     printf("Program terminated successfully.\n");
     return 0;
 }
