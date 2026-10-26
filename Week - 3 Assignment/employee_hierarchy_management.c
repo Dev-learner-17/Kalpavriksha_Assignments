@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <limits.h>
 
 #define EMPLOYEE_NAME_LENGTH 50
 #define EMPLOYEE_DESIGNATION_LENGTH 50
@@ -9,6 +10,7 @@
 #define INITIAL_ARRAY_CAPACITY 4
 #define CEO_DESIGNATION "CEO"
 #define NO_MANAGER_ID 0
+#define INDENTATION_UNIT "    "
 
 typedef enum {
     STATUS_SUCCESS,
@@ -16,9 +18,19 @@ typedef enum {
     STATUS_EMPLOYEE_NOT_FOUND,
     STATUS_DUPLICATE_EMPLOYEE_ID,
     STATUS_MANAGER_NOT_FOUND,
+    STATUS_MANAGER_REQUIRED,
+    STATUS_CEO_ALREADY_EXISTS,
     STATUS_CEO_PROTECTED,
     STATUS_MEMORY_ERROR
 } OperationStatus;
+
+typedef enum {
+    MENU_ADD_EMPLOYEE = 1,
+    MENU_REMOVE_EMPLOYEE,
+    MENU_DISPLAY_EMPLOYEE_HIERARCHY,
+    MENU_DISPLAY_COMPLETE_HIERARCHY,
+    MENU_EXIT
+} MenuChoice;
 
 typedef struct Employee {
     int employeeId;
@@ -30,6 +42,7 @@ typedef struct Employee {
     int directReportCapacity;
 } Employee;
 
+Employee *ceoEmployee = NULL;
 Employee **employeeList = NULL;
 int employeeCount = 0;
 int employeeCapacity = 0;
@@ -77,7 +90,7 @@ int readInteger(const char *prompt, int *enteredNumber) {
 
     long parsedValue = strtol(inputLine, &firstInvalidCharacter, 10);
 
-    if (*firstInvalidCharacter != '\0' || parsedValue < 0 || parsedValue > 1000000000L) {
+    if (*firstInvalidCharacter != '\0' || parsedValue < 0 || parsedValue > INT_MAX) {
         return 0;
     }
 
@@ -172,6 +185,14 @@ OperationStatus addEmployee(void) {
         return STATUS_INVALID_INPUT;
     }
 
+    int isNewEmployeeCeo = isCeoDesignation(employeeDesignation);
+    if (isNewEmployeeCeo && ceoEmployee != NULL) {
+        return STATUS_CEO_ALREADY_EXISTS;
+    }
+    if (!isNewEmployeeCeo && managerEmployeeId == NO_MANAGER_ID) {
+        return STATUS_MANAGER_REQUIRED;
+    }
+
     Employee *reportingManager = NULL;
     if (managerEmployeeId != NO_MANAGER_ID) {
         reportingManager = findEmployeeById(managerEmployeeId);
@@ -205,30 +226,50 @@ OperationStatus addEmployee(void) {
         employee->reportingManager = reportingManager;
     }
     employeeList[employeeCount++] = employee;
+    if (isNewEmployeeCeo) {
+        ceoEmployee = employee;
+    }
 
     printf("Employee added successfully.\n");
     return STATUS_SUCCESS;
 }
 
-OperationStatus transferReportsToManager(Employee *employee) {
+Employee *findTransferTarget(Employee *employee) {
     Employee *reportingManager = employee->reportingManager;
+    Employee *siblingWithFewestReports = NULL;
 
-    if (reportingManager != NULL) {
-        Employee **resizedDirectReports = growEmployeeArray(reportingManager->directReports, &reportingManager->directReportCapacity,
-                                          reportingManager->directReportCount + employee->directReportCount);
-        if (resizedDirectReports == NULL) {
-            return STATUS_MEMORY_ERROR;
+    for (int siblingIndex = 0; siblingIndex < reportingManager->directReportCount; siblingIndex++) {
+        Employee *sibling = reportingManager->directReports[siblingIndex];
+
+        if (sibling == employee) {
+            continue;
         }
-        reportingManager->directReports = resizedDirectReports;
+        if (siblingWithFewestReports == NULL || sibling->directReportCount < siblingWithFewestReports->directReportCount) {
+            siblingWithFewestReports = sibling;
+        }
     }
+
+    return (siblingWithFewestReports != NULL) ? siblingWithFewestReports : reportingManager;
+}
+
+OperationStatus transferDirectReports(Employee *employee) {
+    if (employee->directReportCount == 0) {
+        return STATUS_SUCCESS;
+    }
+
+    Employee *transferTarget = findTransferTarget(employee);
+    Employee **resizedDirectReports = growEmployeeArray(transferTarget->directReports, &transferTarget->directReportCapacity,
+                                                        transferTarget->directReportCount + employee->directReportCount);
+    if (resizedDirectReports == NULL) {
+        return STATUS_MEMORY_ERROR;
+    }
+    transferTarget->directReports = resizedDirectReports;
 
     for (int reportIndex = 0; reportIndex < employee->directReportCount; reportIndex++) {
         Employee *directReport = employee->directReports[reportIndex];
-        directReport->reportingManager = reportingManager;
 
-        if (reportingManager != NULL) {
-            reportingManager->directReports[reportingManager->directReportCount++] = directReport;
-        }
+        directReport->reportingManager = transferTarget;
+        transferTarget->directReports[transferTarget->directReportCount++] = directReport;
     }
 
     employee->directReportCount = 0;
@@ -245,14 +286,12 @@ OperationStatus removeEmployee(int employeeId) {
         return STATUS_CEO_PROTECTED;
     }
 
-    if (employee->reportingManager != NULL) {
-        removeEmployeeFromArray(employee->reportingManager->directReports, &employee->reportingManager->directReportCount, employee);
-    }
-
-    OperationStatus operationStatus = transferReportsToManager(employee);
+    OperationStatus operationStatus = transferDirectReports(employee);
     if (operationStatus != STATUS_SUCCESS) {
         return operationStatus;
     }
+
+    removeEmployeeFromArray(employee->reportingManager->directReports, &employee->reportingManager->directReportCount, employee);
 
     removeEmployeeFromArray(employeeList, &employeeCount, employee);
     free(employee->directReports);
@@ -264,7 +303,7 @@ OperationStatus removeEmployee(int employeeId) {
 
 void displayEmployeeTree(Employee *employee, int indentationLevel) {
     for (int indentationIndex = 0; indentationIndex < indentationLevel; indentationIndex++) {
-        printf("    ");
+        printf(INDENTATION_UNIT);
     }
     printf("%d - %s - %s\n", employee->employeeId, employee->employeeName, employee->employeeDesignation);
     
@@ -297,26 +336,51 @@ void displayEmployeeHierarchy(int employeeId) {
 void displayCompleteHierarchy(void) {
     printf("\n===== ORGANIZATION HIERARCHY =====\n");
 
-    for (int employeeIndex = 0; employeeIndex < employeeCount; employeeIndex++) {
-        if (employeeList[employeeIndex]->reportingManager == NULL) {
-            displayEmployeeTree(employeeList[employeeIndex], 0);
-        }
+    if (ceoEmployee != NULL) {
+        displayEmployeeTree(ceoEmployee, 0);
     }
     printf("Total Employees: %d\n", employeeCount);
 }
 
 void displayOperationStatus(OperationStatus operationStatus) {
     switch (operationStatus) {
-        case STATUS_SUCCESS:             break;
-        case STATUS_INVALID_INPUT:      printf("Invalid input.\n"); break;
-        case STATUS_EMPLOYEE_NOT_FOUND:  printf("Employee not found.\n"); break;
-        case STATUS_DUPLICATE_EMPLOYEE_ID:  printf("Employee ID already exists.\n"); break;
-        case STATUS_MANAGER_NOT_FOUND: printf("Reporting manager not found.\n"); break;
-        case STATUS_CEO_PROTECTED:        printf("The CEO cannot be removed.\n"); break;
-        case STATUS_MEMORY_ERROR:     printf("Memory allocation failed.\n"); break;
+        case STATUS_SUCCESS:
+            break;
+        case STATUS_INVALID_INPUT:
+            printf("Invalid input.\n");
+            break;
+        case STATUS_EMPLOYEE_NOT_FOUND:
+            printf("Employee not found.\n");
+            break;
+        case STATUS_DUPLICATE_EMPLOYEE_ID:
+            printf("Employee ID already exists.\n");
+            break;
+        case STATUS_MANAGER_NOT_FOUND:
+            printf("Reporting manager not found.\n");
+            break;
+        case STATUS_MANAGER_REQUIRED:
+            printf("Only the CEO can be top-level. Please enter a manager ID.\n");
+            break;
+        case STATUS_CEO_ALREADY_EXISTS:
+            printf("A CEO already exists.\n");
+            break;
+        case STATUS_CEO_PROTECTED:
+            printf("The CEO cannot be removed.\n");
+            break;
+        case STATUS_MEMORY_ERROR:
+            printf("Memory allocation failed.\n");
+            break;
     }
 }
 
+void freeAllEmployees(void) {
+    for (int employeeIndex = 0; employeeIndex < employeeCount; employeeIndex++) {
+        free(employeeList[employeeIndex]->directReports);
+        free(employeeList[employeeIndex]);
+    }
+
+    free(employeeList);
+}
 
 void displayMenu(void) {
     printf("\n===== EMPLOYEE HIERARCHY MANAGEMENT =====\n");
@@ -343,11 +407,11 @@ int main(void) {
         }
 
         switch (menuChoice) {
-            case 1:
+            case MENU_ADD_EMPLOYEE:
                 displayOperationStatus(addEmployee());
                 break;
 
-            case 2:
+            case MENU_REMOVE_EMPLOYEE:
                 if (readInteger("Enter Employee ID to remove: ", &employeeId)) {
                     displayOperationStatus(removeEmployee(employeeId));
                 } else {
@@ -355,7 +419,7 @@ int main(void) {
                 }
                 break;
 
-            case 3:
+            case MENU_DISPLAY_EMPLOYEE_HIERARCHY:
                 if (readInteger("Enter Employee ID: ", &employeeId)) {
                     displayEmployeeHierarchy(employeeId);
                 } else {
@@ -363,11 +427,11 @@ int main(void) {
                 }
                 break;
 
-            case 4:
+            case MENU_DISPLAY_COMPLETE_HIERARCHY:
                 displayCompleteHierarchy();
                 break;
 
-            case 5:
+            case MENU_EXIT:
                 isRunning = 0;
                 break;
 
@@ -376,6 +440,7 @@ int main(void) {
         }
     }
 
+    freeAllEmployees();
     printf("Program terminated successfully.\n");
     return 0;
 }
