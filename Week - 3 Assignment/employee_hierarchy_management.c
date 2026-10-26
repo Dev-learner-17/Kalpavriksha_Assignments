@@ -317,13 +317,6 @@ void displayOperationStatus(OperationStatus operationStatus) {
     }
 }
 
-void freeAllEmployees(void) {
-    for (int employeeIndex = 0; employeeIndex < employeeCount; employeeIndex++) {
-        free(employeeList[employeeIndex]->directReports);
-        free(employeeList[employeeIndex]);
-    }
-    free(employeeList);
-}
 
 void displayMenu(void) {
     printf("\n===== EMPLOYEE HIERARCHY MANAGEMENT =====\n");
@@ -383,7 +376,6 @@ int main(void) {
         }
     }
 
-    freeAllEmployees();
     printf("Program terminated successfully.\n");
     return 0;
 }
