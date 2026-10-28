@@ -1,9 +1,5 @@
-
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
-#include <errno.h>
-#include <limits.h>
 
 #define MINIMUM_MATRIX_SIZE 2
 #define MAXIMUM_MATRIX_SIZE 10
@@ -107,7 +103,7 @@ void swapPointers(int **firstPointer, int **secondPointer)
 
 void rotateMatrixClockwise90(int **matrix, int matrixSize)
 {
-    /* Transpose by swapping pointers, not pixel values. */
+    
     for (int row = 0; row < matrixSize; row++)
     {
         for (int column = row + 1;
@@ -121,7 +117,6 @@ void rotateMatrixClockwise90(int **matrix, int matrixSize)
         }
     }
 
-    /* Reverse each row by swapping pointers. */
     for (int row = 0; row < matrixSize; row++)
     {
         for (int column = 0;
@@ -153,14 +148,13 @@ void applyMeanSmoothing(int **matrix, int matrixSize)
         free(currentRow);
 
         fprintf(stderr, "Memory allocation failed.\n");
-        exit(EXIT_FAILURE);
+        exit(1);
     }
 
     for (int row = 0; row < matrixSize; row++)
     {
         int **matrixRow = matrix + row * matrixSize;
 
-        /* Preserve the original values of the current row. */
         for (int column = 0; column < matrixSize; column++)
         {
             *(currentRow + column) = **(matrixRow + column);
@@ -217,11 +211,9 @@ void applyMeanSmoothing(int **matrix, int matrixSize)
                 }
             }
 
-            /* Integer division gives the floor of the average. */
             **(matrixRow + column) = sum / neighborCount;
         }
 
-        /* Retain the original row for the next iteration. */
         int *temporaryRow = previousRow;
         previousRow = currentRow;
         currentRow = temporaryRow;
@@ -238,16 +230,14 @@ int main(void)
     if (!readMatrixSize(&matrixSize))
     {
         fprintf(stderr, "Unable to read a valid matrix size.\n");
-        return EXIT_FAILURE;
+        return 1;
     }
 
     size_t totalCells =
         (size_t)matrixSize * (size_t)matrixSize;
 
-    /* Contiguous storage for the actual pixel values. */
     int *pixelValues = malloc(totalCells * sizeof(*pixelValues));
 
-    /* The matrix is represented by pointers to its pixel values. */
     int **matrix = malloc(totalCells * sizeof(*matrix));
 
     if (pixelValues == NULL || matrix == NULL)
@@ -256,7 +246,7 @@ int main(void)
         free(matrix);
 
         fprintf(stderr, "Memory allocation failed.\n");
-        return EXIT_FAILURE;
+        return 1;
     }
 
     for (size_t cell = 0; cell < totalCells; cell++)
@@ -264,7 +254,7 @@ int main(void)
         *(matrix + cell) = pixelValues + cell;
     }
 
-    srand((unsigned int)time(NULL));
+    srand(1);
 
     generateMatrix(matrix, matrixSize);
 
@@ -284,5 +274,5 @@ int main(void)
     free(matrix);
     free(pixelValues);
 
-    return EXIT_SUCCESS;
+    return 0;
 }
