@@ -8,6 +8,10 @@ enum MatrixLimits {
     MAX_INTENSITY = 255
 };
 
+enum MatrixGeometry {
+    HALF_DIVISOR = 2
+};
+
 enum SmoothingWindow {
     NEIGHBOR_RADIUS = 1,
     ROW_BUFFER_COUNT = 2
@@ -153,27 +157,44 @@ static void printMatrix(const SonarMatrix *matrix)
     }
 }
 
-static void rotateClockwise(SonarMatrix *matrix)
+static void swapCells(int **first, int **second)
 {
-    int layer;
-    int position;
-    int firstIndex;
-    int lastIndex;
-    int offset;
-    int *savedTopPointer;
+    int *temporary = *first;
 
-    for (layer = 0; layer < matrix->size / 2; layer++) {
-        firstIndex = layer;
-        lastIndex = matrix->size - 1 - layer;
-        for (position = firstIndex; position < lastIndex; position++) {
-            offset = position - firstIndex;
-            savedTopPointer = *cellAt(matrix, firstIndex, position);
-            *cellAt(matrix, firstIndex, position) = *cellAt(matrix, lastIndex - offset, firstIndex);
-            *cellAt(matrix, lastIndex - offset, firstIndex) = *cellAt(matrix, lastIndex, lastIndex - offset);
-            *cellAt(matrix, lastIndex, lastIndex - offset) = *cellAt(matrix, position, lastIndex);
-            *cellAt(matrix, position, lastIndex) = savedTopPointer;
+    *first = *second;
+    *second = temporary;
+}
+
+static void transposeMatrix(SonarMatrix *matrix)
+{
+    int row;
+    int column;
+
+    for (row = 0; row < matrix->size; row++) {
+        for (column = row + 1; column < matrix->size; column++) {
+            swapCells(cellAt(matrix, row, column), cellAt(matrix, column, row));
         }
     }
+}
+
+static void reverseRows(SonarMatrix *matrix)
+{
+    int row;
+    int column;
+    int mirrorColumn;
+
+    for (row = 0; row < matrix->size; row++) {
+        for (column = 0; column < matrix->size / HALF_DIVISOR; column++) {
+            mirrorColumn = matrix->size - 1 - column;
+            swapCells(cellAt(matrix, row, column), cellAt(matrix, row, mirrorColumn));
+        }
+    }
+}
+
+static void rotateClockwise(SonarMatrix *matrix)
+{
+    transposeMatrix(matrix);
+    reverseRows(matrix);
 }
 
 static int applySmoothingFilter(SonarMatrix *matrix)
