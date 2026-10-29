@@ -1,29 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
-enum MatrixLimits {
-    MIN_MATRIX_SIZE = 2,
-    MAX_MATRIX_SIZE = 10,
-    MIN_INTENSITY = 0,
-    MAX_INTENSITY = 255
-};
-
-enum MatrixGeometry {
-    HALF_DIVISOR = 2
-};
-
-enum SmoothingWindow {
-    NEIGHBOR_RADIUS = 1,
-    ROW_BUFFER_COUNT = 2
-};
+#define MIN_MATRIX_SIZE 2
+#define MAX_MATRIX_SIZE 10
+#define MIN_INTENSITY 0
+#define MAX_INTENSITY 255
+#define NEIGHBOR_RADIUS 1
+#define ROW_BUFFER_COUNT 2
+#define HALF_DIVISOR 2
 
 enum ProgramStatus {
-    STATUS_SUCCESS = 0,
-    STATUS_FAILURE = 1
-};
-
-enum InputResult {
-    INPUT_ENDED = 0
+    STATUS_SUCCESS,
+    STATUS_FAILURE
 };
 
 typedef struct {
@@ -49,9 +38,6 @@ static void freeMatrix(SonarMatrix *matrix)
 static int allocateMatrix(SonarMatrix *matrix, int size)
 {
     int totalCells = size * size;
-    int **cellCursor;
-    int *valueCursor;
-    int **cellEnd;
 
     matrix->size = size;
     matrix->cells = malloc((size_t)totalCells * sizeof(*matrix->cells));
@@ -60,11 +46,10 @@ static int allocateMatrix(SonarMatrix *matrix, int size)
         freeMatrix(matrix);
         return STATUS_FAILURE;
     }
-    cellCursor = matrix->cells;
-    valueCursor = matrix->values;
-    cellEnd = matrix->cells + totalCells;
+    int **cellCursor = matrix->cells;
+    int *valueCursor = matrix->values;
+    int **cellEnd = matrix->cells + totalCells;
     while (cellCursor < cellEnd) {
-        *valueCursor = MIN_INTENSITY;
         *cellCursor = valueCursor;
         cellCursor++;
         valueCursor++;
@@ -82,33 +67,12 @@ static int discardRestOfLine()
     return character;
 }
 
-static int readMatrixSize()
+static int readMatrixSize(int *size)
 {
-    int size;
-
     while (1) {
+        int value;
+
         printf("Enter matrix size (%d-%d): ", MIN_MATRIX_SIZE, MAX_MATRIX_SIZE);
-        if (scanf("%d", &size) != 1) {
-            if (discardRestOfLine() == EOF) {
-                return INPUT_ENDED;
-            }
-            printf("Invalid input. Please enter an integer.\n");
-            continue;
-        }
-        discardRestOfLine();
-        if (size >= MIN_MATRIX_SIZE && size <= MAX_MATRIX_SIZE) {
-            return size;
-        }
-        printf("Size out of range.\n");
-    }
-}
-
-static int readIntensity(int row, int column, int *intensity)
-{
-    int value;
-
-    while (1) {
-        printf("Value for row %d, column %d: ", row + 1, column + 1);
         if (scanf("%d", &value) != 1) {
             if (discardRestOfLine() == EOF) {
                 return STATUS_FAILURE;
@@ -117,40 +81,27 @@ static int readIntensity(int row, int column, int *intensity)
             continue;
         }
         discardRestOfLine();
-        if (value < MIN_INTENSITY || value > MAX_INTENSITY) {
-            printf("Value out of range.\n");
-            continue;
+        if (value >= MIN_MATRIX_SIZE && value <= MAX_MATRIX_SIZE) {
+            *size = value;
+            return STATUS_SUCCESS;
         }
-        *intensity = value;
-        return STATUS_SUCCESS;
+        printf("Size out of range.\n");
     }
 }
 
-static int readMatrixValues(SonarMatrix *matrix)
+static void fillRandomIntensities(SonarMatrix *matrix)
 {
-    int row;
-    int column;
-    int intensity;
-
-    printf("Enter %d sonar intensity values (%d-%d), row by row:\n", matrix->size * matrix->size, MIN_INTENSITY, MAX_INTENSITY);
-    for (row = 0; row < matrix->size; row++) {
-        for (column = 0; column < matrix->size; column++) {
-            if (readIntensity(row, column, &intensity) != STATUS_SUCCESS) {
-                return STATUS_FAILURE;
-            }
-            **cellAt(matrix, row, column) = intensity;
+    for (int row = 0; row < matrix->size; row++) {
+        for (int column = 0; column < matrix->size; column++) {
+            **cellAt(matrix, row, column) = MIN_INTENSITY + rand() % (MAX_INTENSITY - MIN_INTENSITY + 1);
         }
     }
-    return STATUS_SUCCESS;
 }
 
 static void printMatrix(const SonarMatrix *matrix)
 {
-    int row;
-    int column;
-
-    for (row = 0; row < matrix->size; row++) {
-        for (column = 0; column < matrix->size; column++) {
+    for (int row = 0; row < matrix->size; row++) {
+        for (int column = 0; column < matrix->size; column++) {
             printf("%5d", **cellAt(matrix, row, column));
         }
         printf("\n");
@@ -167,11 +118,8 @@ static void swapCells(int **first, int **second)
 
 static void transposeMatrix(SonarMatrix *matrix)
 {
-    int row;
-    int column;
-
-    for (row = 0; row < matrix->size; row++) {
-        for (column = row + 1; column < matrix->size; column++) {
+    for (int row = 0; row < matrix->size; row++) {
+        for (int column = row + 1; column < matrix->size; column++) {
             swapCells(cellAt(matrix, row, column), cellAt(matrix, column, row));
         }
     }
@@ -179,13 +127,9 @@ static void transposeMatrix(SonarMatrix *matrix)
 
 static void reverseRows(SonarMatrix *matrix)
 {
-    int row;
-    int column;
-    int mirrorColumn;
-
-    for (row = 0; row < matrix->size; row++) {
-        for (column = 0; column < matrix->size / HALF_DIVISOR; column++) {
-            mirrorColumn = matrix->size - 1 - column;
+    for (int row = 0; row < matrix->size; row++) {
+        for (int column = 0; column < matrix->size / HALF_DIVISOR; column++) {
+            int mirrorColumn = matrix->size - 1 - column;
             swapCells(cellAt(matrix, row, column), cellAt(matrix, row, mirrorColumn));
         }
     }
@@ -197,63 +141,60 @@ static void rotateClockwise(SonarMatrix *matrix)
     reverseRows(matrix);
 }
 
+static int originalValueAt(const SonarMatrix *matrix, int rowOffset, int neighborRow, int neighborColumn, const int *previousRowValues, const int *currentRowValues)
+{
+    if (rowOffset < 0) {
+        return *(previousRowValues + neighborColumn);
+    }
+    if (rowOffset == 0) {
+        return *(currentRowValues + neighborColumn);
+    }
+    return **cellAt(matrix, neighborRow, neighborColumn);
+}
+
+static int averageOfNeighbors(const SonarMatrix *matrix, int row, int column, const int *previousRowValues, const int *currentRowValues)
+{
+    int sum = 0;
+    int count = 0;
+
+    for (int rowOffset = -NEIGHBOR_RADIUS; rowOffset <= NEIGHBOR_RADIUS; rowOffset++) {
+        int neighborRow = row + rowOffset;
+        if (neighborRow < 0 || neighborRow >= matrix->size) {
+            continue;
+        }
+        for (int columnOffset = -NEIGHBOR_RADIUS; columnOffset <= NEIGHBOR_RADIUS; columnOffset++) {
+            int neighborColumn = column + columnOffset;
+            if (neighborColumn < 0 || neighborColumn >= matrix->size) {
+                continue;
+            }
+            sum += originalValueAt(matrix, rowOffset, neighborRow, neighborColumn, previousRowValues, currentRowValues);
+            count++;
+        }
+    }
+    return sum / count;
+}
+
 static int applySmoothingFilter(SonarMatrix *matrix)
 {
     int *rowBuffers = malloc((size_t)(ROW_BUFFER_COUNT * matrix->size) * sizeof(*rowBuffers));
-    int *previousRowValues;
-    int *currentRowValues;
-    int *swapHolder;
-    int row;
-    int column;
-    int rowOffset;
-    int columnOffset;
-    int neighborRow;
-    int neighborColumn;
-    int neighborValue;
-    int sum;
-    int count;
 
     if (rowBuffers == NULL) {
         return STATUS_FAILURE;
     }
-    previousRowValues = rowBuffers;
-    currentRowValues = rowBuffers + matrix->size;
+    int *previousRowValues = rowBuffers;
+    int *currentRowValues = rowBuffers + matrix->size;
 
-    for (row = 0; row < matrix->size; row++) {
-        for (column = 0; column < matrix->size; column++) {
+    for (int row = 0; row < matrix->size; row++) {
+        for (int column = 0; column < matrix->size; column++) {
             *(currentRowValues + column) = **cellAt(matrix, row, column);
         }
-        for (column = 0; column < matrix->size; column++) {
-            sum = 0;
-            count = 0;
-            for (rowOffset = -NEIGHBOR_RADIUS; rowOffset <= NEIGHBOR_RADIUS; rowOffset++) {
-                neighborRow = row + rowOffset;
-                if (neighborRow < 0 || neighborRow >= matrix->size) {
-                    continue;
-                }
-                for (columnOffset = -NEIGHBOR_RADIUS; columnOffset <= NEIGHBOR_RADIUS; columnOffset++) {
-                    neighborColumn = column + columnOffset;
-                    if (neighborColumn < 0 || neighborColumn >= matrix->size) {
-                        continue;
-                    }
-                    if (rowOffset < 0) {
-                        neighborValue = *(previousRowValues + neighborColumn);
-                    } else if (rowOffset == 0) {
-                        neighborValue = *(currentRowValues + neighborColumn);
-                    } else {
-                        neighborValue = **cellAt(matrix, neighborRow, neighborColumn);
-                    }
-                    sum += neighborValue;
-                    count++;
-                }
-            }
-            **cellAt(matrix, row, column) = sum / count;
+        for (int column = 0; column < matrix->size; column++) {
+            **cellAt(matrix, row, column) = averageOfNeighbors(matrix, row, column, previousRowValues, currentRowValues);
         }
-        swapHolder = previousRowValues;
+        int *swapHolder = previousRowValues;
         previousRowValues = currentRowValues;
         currentRowValues = swapHolder;
     }
-
     free(rowBuffers);
     return STATUS_SUCCESS;
 }
@@ -261,21 +202,20 @@ static int applySmoothingFilter(SonarMatrix *matrix)
 int main()
 {
     SonarMatrix matrix = { NULL, NULL, 0 };
-    int size = readMatrixSize();
+    int size;
 
-    if (size == INPUT_ENDED) {
+    srand((unsigned int)time(NULL));
+    if (readMatrixSize(&size) != STATUS_SUCCESS) {
+        printf("Input ended. Exiting program.\n");
         return STATUS_FAILURE;
     }
     if (allocateMatrix(&matrix, size) != STATUS_SUCCESS) {
-        printf("Memory allocation failed.\n");
-        return STATUS_FAILURE;
-    }
-    if (readMatrixValues(&matrix) != STATUS_SUCCESS) {
-        freeMatrix(&matrix);
+        printf("Memory allocation failed. Exiting program.\n");
         return STATUS_FAILURE;
     }
 
-    printf("\nOriginal Matrix:\n");
+    fillRandomIntensities(&matrix);
+    printf("\nOriginal Randomly Generated Matrix:\n");
     printMatrix(&matrix);
 
     rotateClockwise(&matrix);
@@ -283,7 +223,7 @@ int main()
     printMatrix(&matrix);
 
     if (applySmoothingFilter(&matrix) != STATUS_SUCCESS) {
-        printf("Memory allocation failed.\n");
+        printf("Memory allocation failed. Exiting program.\n");
         freeMatrix(&matrix);
         return STATUS_FAILURE;
     }
@@ -291,5 +231,6 @@ int main()
     printMatrix(&matrix);
 
     freeMatrix(&matrix);
+    printf("\nProgram completed successfully. Memory released.\n");
     return STATUS_SUCCESS;
 }
