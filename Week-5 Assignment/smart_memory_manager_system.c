@@ -1,34 +1,35 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
+#include <stdbool.h>
 
 #define MIN_POOL_SIZE 1
 #define MAX_POOL_SIZE 1000000
 #define MIN_REQUEST_SIZE 1
 #define INITIAL_CAPACITY 1
 #define INPUT_BUFFER_SIZE 128
-#define MAX_INTEGER_VALUE 2147483647
 #define NO_BLOCK -1
 
-typedef enum{
+typedef enum {
     FIRST_FIT = 1,
     BEST_FIT,
     WORST_FIT
-}FitType;
+} FitType;
 
-typedef enum{
+typedef enum {
     FREE_BLOCK,
     ALLOCATED_BLOCK
-}BlockStatus;
+} BlockStatus;
 
-typedef struct{
+typedef struct {
     int startingOffset;
     int size;
     int allocationId;
     BlockStatus status;
-}MemoryBlock;
+} MemoryBlock;
 
-typedef struct{
+typedef struct {
     unsigned char *memoryPool;
     MemoryBlock *blocks;
     int poolSize;
@@ -36,17 +37,17 @@ typedef struct{
     int capacity;
     int nextId;
     FitType strategy;
-    int idExhausted;
-}MemoryManager;
+    bool idExhausted;
+} MemoryManager;
 
-void clearInputBuffer(void){
+void clearInputBuffer(void) {
     int character;
 
-    while((character = getchar()) != '\n' && character != EOF){
+    while ((character = getchar()) != '\n' && character != EOF) {
     }
 }
 
-int readInteger(const char *prompt, int *value){
+int readInteger(const char *prompt, int *value) {
     char input[INPUT_BUFFER_SIZE];
     int index = 0;
     int number = 0;
@@ -54,23 +55,23 @@ int readInteger(const char *prompt, int *value){
 
     printf("%s", prompt);
 
-    if(fgets(input, sizeof(input), stdin) == NULL){
+    if (fgets(input, sizeof(input), stdin) == NULL) {
         return 0;
     }
 
-    if(strchr(input, '\n') == NULL && !feof(stdin)){
+    if (strchr(input, '\n') == NULL && !feof(stdin)) {
         clearInputBuffer();
         return -1;
     }
 
-    while(input[index] == ' ' || input[index] == '\t'){
+    while (input[index] == ' ' || input[index] == '\t') {
         index++;
     }
 
-    while(input[index] >= '0' && input[index] <= '9'){
+    while (input[index] >= '0' && input[index] <= '9') {
         int digit = input[index] - '0';
 
-        if(number > (MAX_INTEGER_VALUE - digit) / 10){
+        if (number > (INT_MAX - digit) / 10) {
             return -1;
         }
 
@@ -79,12 +80,12 @@ int readInteger(const char *prompt, int *value){
         index++;
     }
 
-    while(input[index] == ' ' || input[index] == '\t' ||
-          input[index] == '\n' || input[index] == '\r'){
+    while (input[index] == ' ' || input[index] == '\t' ||
+           input[index] == '\n' || input[index] == '\r') {
         index++;
     }
 
-    if(!hasDigit || input[index] != '\0'){
+    if (!hasDigit || input[index] != '\0') {
         return -1;
     }
 
@@ -92,29 +93,30 @@ int readInteger(const char *prompt, int *value){
     return 1;
 }
 
-int getValidInput(const char *prompt, int minimum, int maximum, int *value){
+int getValidInput(const char *prompt, int minimum, int maximum, int *value) {
     int result;
 
-    while(1){
+    while (1) {
         result = readInteger(prompt, value);
 
-        if(result == 0){
+        if (result == 0) {
             return 0;
         }
 
-        if(result == 1 && *value >= minimum && *value <= maximum){
+        if (result == 1 && *value >= minimum && *value <= maximum) {
             return 1;
         }
 
-        printf("Invalid input. Enter a value between %d and %d.\n", minimum, maximum);
+        printf("Invalid input. Enter a value between %d and %d.\n",
+               minimum, maximum);
     }
 }
 
-int initializeManager(MemoryManager *manager, int poolSize){
-    manager->memoryPool = malloc(poolSize);
-    manager->blocks = malloc(INITIAL_CAPACITY * sizeof(MemoryBlock));
+int initializeManager(MemoryManager *manager, int poolSize) {
+    manager->memoryPool = malloc((size_t)poolSize);
+    manager->blocks = malloc((size_t)INITIAL_CAPACITY * sizeof(MemoryBlock));
 
-    if(manager->memoryPool == NULL || manager->blocks == NULL){
+    if (manager->memoryPool == NULL || manager->blocks == NULL) {
         free(manager->memoryPool);
         free(manager->blocks);
 
@@ -128,47 +130,48 @@ int initializeManager(MemoryManager *manager, int poolSize){
     manager->blockCount = 1;
     manager->capacity = INITIAL_CAPACITY;
     manager->nextId = 1;
-    manager->idExhausted = 0;
+    manager->idExhausted = false;
 
     manager->blocks[0] = (MemoryBlock){0, poolSize, 0, FREE_BLOCK};
 
     return 1;
 }
 
-void destroyManager(MemoryManager *manager){
+void destroyManager(MemoryManager *manager) {
     free(manager->memoryPool);
     free(manager->blocks);
 
     manager->memoryPool = NULL;
     manager->blocks = NULL;
+    manager->poolSize = 0;
     manager->blockCount = 0;
     manager->capacity = 0;
 }
 
-int ensureCapacity(MemoryManager *manager, int required){
+int ensureCapacity(MemoryManager *manager, int required) {
     int newCapacity = manager->capacity;
     MemoryBlock *newBlocks;
 
-    if(required <= manager->capacity){
+    if (required <= manager->capacity) {
         return 1;
     }
 
-    if(required > manager->poolSize){
+    if (required > manager->poolSize) {
         return 0;
     }
 
-    while(newCapacity < required){
-        if(newCapacity > manager->poolSize / 2){
+    while (newCapacity < required) {
+        if (newCapacity > manager->poolSize / 2) {
             newCapacity = manager->poolSize;
-        }
-        else{
+        } else {
             newCapacity *= 2;
         }
     }
 
-    newBlocks = realloc(manager->blocks, newCapacity * sizeof(MemoryBlock));
+    newBlocks = realloc(manager->blocks,
+                        (size_t)newCapacity * sizeof(MemoryBlock));
 
-    if(newBlocks == NULL){
+    if (newBlocks == NULL) {
         return 0;
     }
 
@@ -178,8 +181,8 @@ int ensureCapacity(MemoryManager *manager, int required){
     return 1;
 }
 
-const char *getStrategyName(FitType strategy){
-    switch(strategy){
+const char *getStrategyName(FitType strategy) {
+    switch (strategy) {
         case FIRST_FIT:
             return "First Fit";
 
@@ -194,11 +197,11 @@ const char *getStrategyName(FitType strategy){
     }
 }
 
-int firstFit(const MemoryManager *manager, int requestedSize){
-    for(int index = 0; index < manager->blockCount; index++){
-        MemoryBlock *block = &manager->blocks[index];
+int firstFit(const MemoryManager *manager, int requestedSize) {
+    for (int index = 0; index < manager->blockCount; index++) {
+        const MemoryBlock *block = &manager->blocks[index];
 
-        if(block->status == FREE_BLOCK && block->size >= requestedSize){
+        if (block->status == FREE_BLOCK && block->size >= requestedSize) {
             return index;
         }
     }
@@ -206,14 +209,15 @@ int firstFit(const MemoryManager *manager, int requestedSize){
     return NO_BLOCK;
 }
 
-int bestFit(const MemoryManager *manager, int requestedSize){
+int bestFit(const MemoryManager *manager, int requestedSize) {
     int selectedIndex = NO_BLOCK;
 
-    for(int index = 0; index < manager->blockCount; index++){
-        MemoryBlock *block = &manager->blocks[index];
+    for (int index = 0; index < manager->blockCount; index++) {
+        const MemoryBlock *block = &manager->blocks[index];
 
-        if(block->status == FREE_BLOCK && block->size >= requestedSize &&
-           (selectedIndex == NO_BLOCK || block->size < manager->blocks[selectedIndex].size)){
+        if (block->status == FREE_BLOCK && block->size >= requestedSize &&
+            (selectedIndex == NO_BLOCK ||
+             block->size < manager->blocks[selectedIndex].size)) {
             selectedIndex = index;
         }
     }
@@ -221,14 +225,15 @@ int bestFit(const MemoryManager *manager, int requestedSize){
     return selectedIndex;
 }
 
-int worstFit(const MemoryManager *manager, int requestedSize){
+int worstFit(const MemoryManager *manager, int requestedSize) {
     int selectedIndex = NO_BLOCK;
 
-    for(int index = 0; index < manager->blockCount; index++){
-        MemoryBlock *block = &manager->blocks[index];
+    for (int index = 0; index < manager->blockCount; index++) {
+        const MemoryBlock *block = &manager->blocks[index];
 
-        if(block->status == FREE_BLOCK && block->size >= requestedSize &&
-           (selectedIndex == NO_BLOCK || block->size > manager->blocks[selectedIndex].size)){
+        if (block->status == FREE_BLOCK && block->size >= requestedSize &&
+            (selectedIndex == NO_BLOCK ||
+             block->size > manager->blocks[selectedIndex].size)) {
             selectedIndex = index;
         }
     }
@@ -236,8 +241,8 @@ int worstFit(const MemoryManager *manager, int requestedSize){
     return selectedIndex;
 }
 
-int findFreeBlock(const MemoryManager *manager, int requestedSize){
-    switch(manager->strategy){
+int findFreeBlock(const MemoryManager *manager, int requestedSize) {
+    switch (manager->strategy) {
         case FIRST_FIT:
             return firstFit(manager, requestedSize);
 
@@ -252,11 +257,12 @@ int findFreeBlock(const MemoryManager *manager, int requestedSize){
     }
 }
 
-int findAllocation(const MemoryManager *manager, int allocationId){
-    for(int index = 0; index < manager->blockCount; index++){
-        MemoryBlock *block = &manager->blocks[index];
+int findAllocation(const MemoryManager *manager, int allocationId) {
+    for (int index = 0; index < manager->blockCount; index++) {
+        const MemoryBlock *block = &manager->blocks[index];
 
-        if(block->status == ALLOCATED_BLOCK && block->allocationId == allocationId){
+        if (block->status == ALLOCATED_BLOCK &&
+            block->allocationId == allocationId) {
             return index;
         }
     }
@@ -264,36 +270,38 @@ int findAllocation(const MemoryManager *manager, int allocationId){
     return NO_BLOCK;
 }
 
-void mergeFreeBlocks(MemoryManager *manager){
+void mergeFreeBlocks(MemoryManager *manager) {
     int index = 0;
 
-    while(index + 1 < manager->blockCount){
+    while (index + 1 < manager->blockCount) {
         MemoryBlock *current = &manager->blocks[index];
         MemoryBlock *next = &manager->blocks[index + 1];
 
-        if(current->status == FREE_BLOCK && next->status == FREE_BLOCK){
+        if (current->status == FREE_BLOCK && next->status == FREE_BLOCK) {
             current->size += next->size;
 
             memmove(&manager->blocks[index + 1],
                     &manager->blocks[index + 2],
-                    (manager->blockCount - index - 2) * sizeof(MemoryBlock));
+                    (size_t)(manager->blockCount - index - 2) *
+                        sizeof(MemoryBlock));
 
             manager->blockCount--;
-        }
-        else{
+        } else {
             index++;
         }
     }
 }
 
-void insertAllocation(MemoryManager *manager, int index, int requestedSize, int allocationId){
+void insertAllocation(MemoryManager *manager, int index,
+                      int requestedSize, int allocationId) {
     int originalSize = manager->blocks[index].size;
     int originalOffset = manager->blocks[index].startingOffset;
 
-    if(originalSize > requestedSize){
+    if (originalSize > requestedSize) {
         memmove(&manager->blocks[index + 2],
                 &manager->blocks[index + 1],
-                (manager->blockCount - index - 1) * sizeof(MemoryBlock));
+                (size_t)(manager->blockCount - index - 1) *
+                    sizeof(MemoryBlock));
 
         manager->blocks[index + 1] = (MemoryBlock){
             originalOffset + requestedSize,
@@ -313,30 +321,30 @@ void insertAllocation(MemoryManager *manager, int index, int requestedSize, int 
     };
 }
 
-int detectFragmentation(const MemoryManager *manager, int requestedSize){
+int detectFragmentation(const MemoryManager *manager, int requestedSize) {
     int totalFree = 0;
     int largestFree = 0;
 
-    for(int index = 0; index < manager->blockCount; index++){
-        MemoryBlock *block = &manager->blocks[index];
+    for (int index = 0; index < manager->blockCount; index++) {
+        const MemoryBlock *block = &manager->blocks[index];
 
-        if(block->status == FREE_BLOCK){
+        if (block->status == FREE_BLOCK) {
             totalFree += block->size;
 
-            if(block->size > largestFree){
+            if (block->size > largestFree) {
                 largestFree = block->size;
             }
         }
     }
 
-    if(totalFree >= requestedSize && largestFree < requestedSize){
+    if (totalFree >= requestedSize && largestFree < requestedSize) {
         printf("External fragmentation detected.\n");
         printf("Requested size: %d bytes\n", requestedSize);
         printf("Total free memory: %d bytes\n", totalFree);
         printf("Individual free blocks:\n");
 
-        for(int index = 0; index < manager->blockCount; index++){
-            if(manager->blocks[index].status == FREE_BLOCK){
+        for (int index = 0; index < manager->blockCount; index++) {
+            if (manager->blocks[index].status == FREE_BLOCK) {
                 printf("%d bytes\n", manager->blocks[index].size);
             }
         }
@@ -347,34 +355,35 @@ int detectFragmentation(const MemoryManager *manager, int requestedSize){
     return 0;
 }
 
-void reportAllocationFailure(const MemoryManager *manager, int requestedSize){
+void reportAllocationFailure(const MemoryManager *manager, int requestedSize) {
     printf("Allocation failed: no contiguous free block is large enough.\n");
     detectFragmentation(manager, requestedSize);
 }
 
-void allocateMemory(MemoryManager *manager, int requestedSize){
+void allocateMemory(MemoryManager *manager, int requestedSize) {
     int index;
     int allocationId;
 
-    if(requestedSize < MIN_REQUEST_SIZE || requestedSize > manager->poolSize){
+    if (requestedSize < MIN_REQUEST_SIZE ||
+        requestedSize > manager->poolSize) {
         printf("Invalid allocation size.\n");
         return;
     }
 
-    if(manager->idExhausted){
+    if (manager->idExhausted) {
         printf("Allocation ID limit reached.\n");
         return;
     }
 
     index = findFreeBlock(manager, requestedSize);
 
-    if(index == NO_BLOCK){
+    if (index == NO_BLOCK) {
         reportAllocationFailure(manager, requestedSize);
         return;
     }
 
-    if(manager->blocks[index].size > requestedSize &&
-       !ensureCapacity(manager, manager->blockCount + 1)){
+    if (manager->blocks[index].size > requestedSize &&
+        !ensureCapacity(manager, manager->blockCount + 1)) {
         printf("Metadata allocation failed.\n");
         return;
     }
@@ -383,22 +392,28 @@ void allocateMemory(MemoryManager *manager, int requestedSize){
 
     insertAllocation(manager, index, requestedSize, allocationId);
 
-    if(manager->nextId == MAX_INTEGER_VALUE){
-        manager->idExhausted = 1;
-    }
-    else{
+    if (manager->nextId == INT_MAX) {
+        manager->idExhausted = true;
+    } else {
         manager->nextId++;
     }
 
     printf("Allocation successful. ID: %d, Start: %d, Size: %d\n",
-           allocationId, manager->blocks[index].startingOffset, requestedSize);
+           allocationId, manager->blocks[index].startingOffset,
+           requestedSize);
 }
 
-void releaseMemory(MemoryManager *manager, int allocationId){
+void releaseMemory(MemoryManager *manager, int allocationId) {
     int index = findAllocation(manager, allocationId);
 
-    if(index == NO_BLOCK){
-        printf("Invalid or already released allocation ID.\n");
+    if (index == NO_BLOCK) {
+        if (allocationId < MIN_REQUEST_SIZE ||
+            (!manager->idExhausted && allocationId >= manager->nextId)) {
+            printf("Invalid allocation ID.\n");
+        } else {
+            printf("Allocation ID has already been released.\n");
+        }
+
         return;
     }
 
@@ -410,27 +425,27 @@ void releaseMemory(MemoryManager *manager, int allocationId){
     printf("Allocation released successfully.\n");
 }
 
-int resizeInPlace(MemoryManager *manager, int index, int newSize){
+int resizeInPlace(MemoryManager *manager, int index, int newSize) {
     int oldSize = manager->blocks[index].size;
     int oldOffset = manager->blocks[index].startingOffset;
 
-    if(newSize < oldSize){
+    if (newSize < oldSize) {
         int releasedSize = oldSize - newSize;
 
-        if(index + 1 < manager->blockCount &&
-           manager->blocks[index + 1].status == FREE_BLOCK){
+        if (index + 1 < manager->blockCount &&
+            manager->blocks[index + 1].status == FREE_BLOCK) {
             manager->blocks[index].size = newSize;
             manager->blocks[index + 1].startingOffset = oldOffset + newSize;
             manager->blocks[index + 1].size += releasedSize;
-        }
-        else{
-            if(!ensureCapacity(manager, manager->blockCount + 1)){
+        } else {
+            if (!ensureCapacity(manager, manager->blockCount + 1)) {
                 return -1;
             }
 
             memmove(&manager->blocks[index + 2],
                     &manager->blocks[index + 1],
-                    (manager->blockCount - index - 1) * sizeof(MemoryBlock));
+                    (size_t)(manager->blockCount - index - 1) *
+                        sizeof(MemoryBlock));
 
             manager->blocks[index].size = newSize;
 
@@ -448,23 +463,23 @@ int resizeInPlace(MemoryManager *manager, int index, int newSize){
         return 1;
     }
 
-    if(newSize > oldSize){
+    if (newSize > oldSize) {
         int growth = newSize - oldSize;
 
-        if(index + 1 >= manager->blockCount ||
-           manager->blocks[index + 1].status != FREE_BLOCK ||
-           manager->blocks[index + 1].size < growth){
+        if (index + 1 >= manager->blockCount ||
+            manager->blocks[index + 1].status != FREE_BLOCK ||
+            manager->blocks[index + 1].size < growth) {
             return 0;
         }
 
-        if(manager->blocks[index + 1].size == growth){
+        if (manager->blocks[index + 1].size == growth) {
             memmove(&manager->blocks[index + 1],
                     &manager->blocks[index + 2],
-                    (manager->blockCount - index - 2) * sizeof(MemoryBlock));
+                    (size_t)(manager->blockCount - index - 2) *
+                        sizeof(MemoryBlock));
 
             manager->blockCount--;
-        }
-        else{
+        } else {
             manager->blocks[index + 1].startingOffset += growth;
             manager->blocks[index + 1].size -= growth;
         }
@@ -475,20 +490,21 @@ int resizeInPlace(MemoryManager *manager, int index, int newSize){
     return 1;
 }
 
-int resizeByMoving(MemoryManager *manager, int index, int newSize, int allocationId){
+int resizeByMoving(MemoryManager *manager, int index,
+                   int newSize, int allocationId) {
     int destination = findFreeBlock(manager, newSize);
     int oldOffset = manager->blocks[index].startingOffset;
     int oldSize = manager->blocks[index].size;
     int newOffset;
 
-    if(destination == NO_BLOCK){
+    if (destination == NO_BLOCK) {
         reportAllocationFailure(manager, newSize);
         printf("Original allocation remains unchanged.\n");
         return 0;
     }
 
-    if(manager->blocks[destination].size > newSize &&
-       !ensureCapacity(manager, manager->blockCount + 1)){
+    if (manager->blocks[destination].size > newSize &&
+        !ensureCapacity(manager, manager->blockCount + 1)) {
         printf("Metadata allocation failed. Original allocation unchanged.\n");
         return 0;
     }
@@ -497,16 +513,16 @@ int resizeByMoving(MemoryManager *manager, int index, int newSize, int allocatio
 
     memmove(manager->memoryPool + newOffset,
             manager->memoryPool + oldOffset,
-            oldSize);
+            (size_t)oldSize);
 
     insertAllocation(manager, destination, newSize, allocationId);
 
-    for(int current = 0; current < manager->blockCount; current++){
+    for (int current = 0; current < manager->blockCount; current++) {
         MemoryBlock *block = &manager->blocks[current];
 
-        if(block->status == ALLOCATED_BLOCK &&
-           block->allocationId == allocationId &&
-           block->startingOffset == oldOffset){
+        if (block->status == ALLOCATED_BLOCK &&
+            block->allocationId == allocationId &&
+            block->startingOffset == oldOffset) {
             block->status = FREE_BLOCK;
             block->allocationId = 0;
             break;
@@ -518,78 +534,76 @@ int resizeByMoving(MemoryManager *manager, int index, int newSize, int allocatio
     return 1;
 }
 
-void resizeMemory(MemoryManager *manager, int allocationId, int newSize){
+void resizeMemory(MemoryManager *manager, int allocationId, int newSize) {
     int index = findAllocation(manager, allocationId);
     int result;
 
-    if(index == NO_BLOCK){
-        printf("Invalid allocation ID.\n");
+    if (index == NO_BLOCK) {
+        printf("Invalid allocation ID or allocation already released.\n");
         return;
     }
 
-    if(newSize < MIN_REQUEST_SIZE || newSize > manager->poolSize){
+    if (newSize < MIN_REQUEST_SIZE || newSize > manager->poolSize) {
         printf("Invalid resize size.\n");
         return;
     }
 
-    if(newSize == manager->blocks[index].size){
+    if (newSize == manager->blocks[index].size) {
         printf("Allocation size is unchanged.\n");
         return;
     }
 
     result = resizeInPlace(manager, index, newSize);
 
-    if(result == 1){
+    if (result == 1) {
         printf("Allocation resized in place successfully.\n");
         return;
     }
 
-    if(result == -1){
+    if (result == -1) {
         printf("Metadata allocation failed. Original allocation unchanged.\n");
         return;
     }
 
-    if(resizeByMoving(manager, index, newSize, allocationId)){
+    if (resizeByMoving(manager, index, newSize, allocationId)) {
         printf("Allocation moved and resized successfully.\n");
     }
 }
 
-void displayMemoryMap(const MemoryManager *manager){
+void displayMemoryMap(const MemoryManager *manager) {
     printf("\nMemory Map (%d bytes):\n", manager->poolSize);
 
-    for(int index = 0; index < manager->blockCount; index++){
+    for (int index = 0; index < manager->blockCount; index++) {
         const MemoryBlock *block = &manager->blocks[index];
 
-        if(block->status == ALLOCATED_BLOCK){
+        if (block->status == ALLOCATED_BLOCK) {
             printf("[Allocated #%d: %d bytes, Start: %d]\n",
                    block->allocationId, block->size, block->startingOffset);
-        }
-        else{
+        } else {
             printf("[Free: %d bytes, Start: %d]\n",
                    block->size, block->startingOffset);
         }
     }
 }
 
-void displayStatistics(const MemoryManager *manager){
+void displayStatistics(const MemoryManager *manager) {
     int allocatedBytes = 0;
     int freeBytes = 0;
     int allocatedCount = 0;
     int freeCount = 0;
     int largestFree = 0;
 
-    for(int index = 0; index < manager->blockCount; index++){
+    for (int index = 0; index < manager->blockCount; index++) {
         const MemoryBlock *block = &manager->blocks[index];
 
-        if(block->status == ALLOCATED_BLOCK){
+        if (block->status == ALLOCATED_BLOCK) {
             allocatedBytes += block->size;
             allocatedCount++;
-        }
-        else{
+        } else {
             freeBytes += block->size;
             freeCount++;
 
-            if(block->size > largestFree){
+            if (block->size > largestFree) {
                 largestFree = block->size;
             }
         }
@@ -604,14 +618,14 @@ void displayStatistics(const MemoryManager *manager){
     printf("Strategy: %s\n", getStrategyName(manager->strategy));
 }
 
-void changeStrategy(MemoryManager *manager){
+void changeStrategy(MemoryManager *manager) {
     int choice;
 
     printf("\n1. First Fit\n");
     printf("2. Best Fit\n");
     printf("3. Worst Fit\n");
 
-    if(!getValidInput("Select strategy: ", FIRST_FIT, WORST_FIT, &choice)){
+    if (!getValidInput("Select strategy: ", FIRST_FIT, WORST_FIT, &choice)) {
         return;
     }
 
@@ -620,7 +634,7 @@ void changeStrategy(MemoryManager *manager){
     printf("Strategy changed to %s.\n", getStrategyName(manager->strategy));
 }
 
-void displayMenu(void){
+void displayMenu(void) {
     printf("\nMenu:\n");
     printf("1. Allocate memory\n");
     printf("2. Release memory\n");
@@ -631,22 +645,23 @@ void displayMenu(void){
     printf("7. Exit\n");
 }
 
-void processMenu(MemoryManager *manager){
+void processMenu(MemoryManager *manager) {
     int choice;
     int requestedSize;
     int allocationId;
     int running = 1;
 
     displayMenu();
-    while(running){
 
-        if(!getValidInput("\nChoice: ", 1, 7, &choice)){
+    while (running) {
+        if (!getValidInput("\nChoice: ", 1, 7, &choice)) {
             break;
         }
 
-        switch(choice){
+        switch (choice) {
             case 1:
-                if(!getValidInput("Requested size: ", MIN_REQUEST_SIZE, manager->poolSize, &requestedSize)){
+                if (!getValidInput("Requested size: ", MIN_REQUEST_SIZE,
+                                   manager->poolSize, &requestedSize)) {
                     return;
                 }
 
@@ -654,7 +669,8 @@ void processMenu(MemoryManager *manager){
                 break;
 
             case 2:
-                if(!getValidInput("Allocation ID: ", MIN_REQUEST_SIZE, MAX_INTEGER_VALUE, &allocationId)){
+                if (!getValidInput("Allocation ID: ", MIN_REQUEST_SIZE,
+                                   INT_MAX, &allocationId)) {
                     return;
                 }
 
@@ -662,11 +678,13 @@ void processMenu(MemoryManager *manager){
                 break;
 
             case 3:
-                if(!getValidInput("Allocation ID: ", MIN_REQUEST_SIZE, MAX_INTEGER_VALUE, &allocationId)){
+                if (!getValidInput("Allocation ID: ", MIN_REQUEST_SIZE,
+                                   INT_MAX, &allocationId)) {
                     return;
                 }
 
-                if(!getValidInput("New allocation size: ", MIN_REQUEST_SIZE, manager->poolSize, &requestedSize)){
+                if (!getValidInput("New allocation size: ", MIN_REQUEST_SIZE,
+                                   manager->poolSize, &requestedSize)) {
                     return;
                 }
 
@@ -693,21 +711,23 @@ void processMenu(MemoryManager *manager){
     }
 }
 
-int main(void){
+int main(void) {
     MemoryManager manager = {0};
     int poolSize;
     int strategy;
 
-    if(!getValidInput("Enter memory pool size: ", MIN_POOL_SIZE, MAX_POOL_SIZE, &poolSize)){
+    if (!getValidInput("Enter memory pool size: ", MIN_POOL_SIZE,
+                       MAX_POOL_SIZE, &poolSize)) {
         return 0;
     }
 
-    if(!initializeManager(&manager, poolSize)){
+    if (!initializeManager(&manager, poolSize)) {
         printf("Memory initialization failed.\n");
         return 1;
     }
 
-    if(!getValidInput("Select strategy (1. First Fit, 2. Best Fit, 3. Worst Fit): ", FIRST_FIT, WORST_FIT, &strategy)){
+    if (!getValidInput("Select strategy (1. First Fit, 2. Best Fit, 3. Worst Fit): ",
+                       FIRST_FIT, WORST_FIT, &strategy)) {
         destroyManager(&manager);
         return 0;
     }
