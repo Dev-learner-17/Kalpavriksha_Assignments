@@ -688,14 +688,23 @@ static char *extractWriteContent(char *text)
 {
     char *contentStart;
     char *contentEnd;
+    char *remainingText;
+    char quote;
 
     text = skipWhitespace(text);
 
-    if (*text == '"') {
+    if (*text == '"' || *text == '\'') {
+        quote = *text;
         contentStart = text + 1;
-        contentEnd = strrchr(contentStart, '"');
+        contentEnd = strchr(contentStart, quote);
 
         if (contentEnd == NULL) {
+            return NULL;
+        }
+
+        remainingText = skipWhitespace(contentEnd + 1);
+
+        if (*remainingText != '\0') {
             return NULL;
         }
 
